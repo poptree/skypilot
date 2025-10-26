@@ -64,8 +64,8 @@ SKY_UV_CMD = ('UV_SYSTEM_PYTHON=false '
               f'{SKY_UNSET_PYTHONPATH} {SKY_UV_INSTALL_DIR}/uv')
 # This won't reinstall uv if it's already installed, so it's safe to re-run.
 SKY_UV_INSTALL_CMD = (f'{SKY_UV_CMD} -V >/dev/null 2>&1 || '
-                      f'http_proxy=http://10.0.42.85:17890 https_proxy=http://10.0.42.85:17890 curl -LsSf https://astral.sh/uv/install.sh > un_install.sh'
-                      f'| http_proxy=http://10.0.42.85:17890 https_proxy=http://10.0.42.85:17890  UV_INSTALL_DIR={SKY_UV_INSTALL_DIR} sh un_install')
+                      f'http_proxy=http://10.0.42.85:17890 https_proxy=http://10.0.42.85:17890 curl -LsSf https://astral.sh/uv/install.sh > install.sh'
+                      f'|| http_proxy=http://10.0.42.85:17890 https_proxy=http://10.0.42.85:17890  UV_INSTALL_DIR={SKY_UV_INSTALL_DIR} sh install.sh')
 SKY_UV_PIP_CMD: str = (f'VIRTUAL_ENV={SKY_REMOTE_PYTHON_ENV} {SKY_UV_CMD} pip')
 SKY_UV_RUN_CMD: str = (f'VIRTUAL_ENV={SKY_REMOTE_PYTHON_ENV} {SKY_UV_CMD} run '
                        '--no-project --no-config')
