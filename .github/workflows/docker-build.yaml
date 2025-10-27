@@ -217,7 +217,8 @@ jobs:
         run: |
           PLATFORM_NAME=$(echo "${{ matrix.platform }}" | sed 's/\//-/g')
           echo "name=$PLATFORM_NAME" >> $GITHUB_OUTPUT
-
+      - name: Debug tag
+        run: echo "Full tag: ${{ secrets.DOCKER_USERNAME }}/${{ inputs.package_name }}:${{ needs.prepare.outputs.version }}-${{ steps.platform.outputs.name }}"
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
