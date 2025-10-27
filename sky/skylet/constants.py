@@ -159,10 +159,10 @@ CONDA_INSTALLATION_COMMANDS = (
     # because for some images, conda is already installed, but not initialized.
     # In this case, we need to initialize conda and set auto_activate_base to
     # true.
-    '{ bash Miniconda3-Linux.sh -b || true; '
-    'eval "$(~/miniconda3/bin/conda shell.bash hook)" && conda init && '
+    # '{ bash Miniconda3-Linux.sh -b || true; '
+    '{ eval "$(~/miniconda3/bin/conda shell.bash hook)" && conda init && '
     # Caller should replace {conda_auto_activate} with either true or false.
-    'conda config --set auto_activate_base {conda_auto_activate} && '
+    ' conda config --set auto_activate_base {conda_auto_activate} && '
     'conda activate base; }; '
     # If conda was not installed and the image is a docker image,
     # we deactivate any active conda environment we set.
@@ -209,7 +209,7 @@ RAY_INSTALLATION_COMMANDS = (
     # Install setuptools<=69.5.1 to avoid the issue with the latest setuptools
     # causing the error:
     #   ImportError: cannot import name 'packaging' from 'pkg_resources'"
-    f'{SKY_UV_PIP_CMD} install "setuptools<70"; '
+    # f'{SKY_UV_PIP_CMD} install "setuptools<70"; '
     # Backward compatibility for ray upgrade (#3248): do not upgrade ray if the
     # ray cluster is already running, to avoid the ray cluster being restarted.
     #
@@ -228,7 +228,7 @@ RAY_INSTALLATION_COMMANDS = (
     f'|| {RAY_STATUS} || '
     # The pydantic-core==2.41.3 for arm seems corrupted
     # so we need to avoid that specific version.
-    f'{SKY_UV_PIP_CMD} install -U "ray[default]=={SKY_REMOTE_RAY_VERSION}" "pydantic-core==2.41.1"; '  # pylint: disable=line-too-long
+    # f'{SKY_UV_PIP_CMD} install -U "ray[default]=={SKY_REMOTE_RAY_VERSION}" "pydantic-core==2.41.1"; '  # pylint: disable=line-too-long
     # In some envs, e.g. pip does not have permission to write under /opt/conda
     # ray package will be installed under ~/.local/bin. If the user's PATH does
     # not include ~/.local/bin (the pip install will have the output: `WARNING:
@@ -274,10 +274,11 @@ RAY_SKYPILOT_INSTALLATION_COMMANDS = (
     # The ray installation above can be skipped due to the existing ray cluster
     # for backward compatibility. In this case, we should not patch the ray
     # files.
-    f'{SKY_UV_PIP_CMD} list | grep "ray " | '
-    f'grep {SKY_REMOTE_RAY_VERSION} 2>&1 > /dev/null && '
-    f'{{ {SKY_PYTHON_CMD} -c '
-    '"from sky.skylet.ray_patches import patch; patch()" || exit 1; }; ')
+    # f'{SKY_UV_PIP_CMD} list | grep "ray " | '
+    # f'grep {SKY_REMOTE_RAY_VERSION} 2>&1 > /dev/null && '
+    # f'{{ {SKY_PYTHON_CMD} -c '
+    # '"from sky.skylet.ray_patches import patch; patch()" || exit 1; }; ')
+    f'echo "skip ray patch"')
 
 # The name for the environment variable that stores SkyPilot user hash, which
 # is mainly used to make sure sky commands runs on a VM launched by SkyPilot
