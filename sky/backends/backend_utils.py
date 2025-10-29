@@ -899,6 +899,7 @@ def write_cluster_config(
         dict(
             resources_vars,
             **{
+                "active_workspace": skypilot_config.get_active_workspace(), # passing active_workspace for kai scheduler
                 'cluster_name_on_cloud': cluster_name_on_cloud,
                 'num_nodes': num_nodes,
                 'disk_size': to_provision.disk_size,
