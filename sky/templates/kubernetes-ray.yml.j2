@@ -446,9 +446,17 @@ available_node_types:
         # object store. If you do not provide this, Ray will fall back to
         # /tmp which cause slowdowns if is not a shared memory volume.
         volumes:
-        - name: jfs-old
+        - name: jfs-hkust-stu-data
           hostPath:
-            path: "/mnt/jfs-old"
+            path: "/mnt/jfs-old/hkust-lab-data"
+            type: Directory
+        - name: jfs-dataset
+          hostPath:
+            path: "/mnt/jfs-old/dataset"
+            type: Directory
+        - name: jfs-pretrained
+          hostPath:
+            path: "/mnt/jfs-old/pretrained-model"
             type: Directory
         - name: dshm
           emptyDir:
@@ -1116,8 +1124,12 @@ available_node_types:
           # object store. If you do not provide this, Ray will fall back to
           # /tmp which cause slowdowns if is not a shared memory volume.
           volumeMounts:
-          - mountPath: /mnt/jfs-old
-            name: jfs-old
+          - mountPath: /mnt/hkust-data
+            name:  jfs-hkust-stu-data
+          - mountPath: /mnt/hkust-dataset
+            name: jfs-dataset
+          - mountPath: /mnt/hkust-pretrained
+            name: jfs-pretrained
           - mountPath: /dev/shm
             name: dshm
           {% if k8s_enable_gpudirect_tcpx %}
