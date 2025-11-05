@@ -82,7 +82,7 @@ def is_high_availability_cluster_by_kubectl(
             context).list_namespaced_deployment(
                 namespace,
                 label_selector=
-                f'{k8s_constants.TAG_SKYPILOT_CLUSTER_NAME}={cluster_name}')
+                f'{constants.TAG_SKYPILOT_CLUSTER_NAME}={cluster_name}')
     except kubernetes.api_exception():
         return False
     # It is a high availability cluster if there is at least one deployment
@@ -426,11 +426,11 @@ def _wait_for_pods_to_schedule(namespace, context, new_nodes, timeout: int,
         # Get all pods in a single API call using the cluster name label
         # which all pods in new_nodes should share
         cluster_name_on_cloud = new_nodes[0].metadata.labels[
-            k8s_constants.TAG_SKYPILOT_CLUSTER_NAME]
+            constants.TAG_SKYPILOT_CLUSTER_NAME]
         pods = kubernetes.core_api(context).list_namespaced_pod(
             namespace,
             label_selector=
-            f'{k8s_constants.TAG_SKYPILOT_CLUSTER_NAME}={cluster_name_on_cloud}'
+            f'{constants.TAG_SKYPILOT_CLUSTER_NAME}={cluster_name_on_cloud}'
         ).items
 
         # Get the set of found pod names and check if we have all expected pods
@@ -531,11 +531,11 @@ def _wait_for_pods_to_run(namespace, context, cluster_name, new_pods):
     while True:
         # Get all pods in a single API call
         cluster_name_on_cloud = new_pods[0].metadata.labels[
-            k8s_constants.TAG_SKYPILOT_CLUSTER_NAME]
+            constants.TAG_SKYPILOT_CLUSTER_NAME]
         all_pods = kubernetes.core_api(context).list_namespaced_pod(
             namespace,
             label_selector=
-            f'{k8s_constants.TAG_SKYPILOT_CLUSTER_NAME}={cluster_name_on_cloud}'
+            f'{constants.TAG_SKYPILOT_CLUSTER_NAME}={cluster_name_on_cloud}'
         ).items
 
         # Get the set of found pod names and check if we have all expected pods
@@ -912,7 +912,7 @@ def _create_pods(region: str, cluster_name: str, cluster_name_on_cloud: str,
     else:
         pod_spec['metadata']['labels'] = tags
     pod_spec['metadata']['labels'].update(
-        {k8s_constants.TAG_SKYPILOT_CLUSTER_NAME: cluster_name_on_cloud})
+        {constants.TAG_SKYPILOT_CLUSTER_NAME: cluster_name_on_cloud})
 
     terminating_pods = kubernetes_utils.filter_pods(namespace, context, tags,
                                                     ['Terminating'])
@@ -1052,7 +1052,7 @@ def _create_pods(region: str, cluster_name: str, cluster_name_on_cloud: str,
                 'podAffinityTerm': {
                     'labelSelector': {
                         'matchExpressions': [{
-                            'key': k8s_constants.TAG_SKYPILOT_CLUSTER_NAME,
+                            'key': constants.TAG_SKYPILOT_CLUSTER_NAME,
                             'operator': 'In',
                             'values': [cluster_name_on_cloud]
                         }]
@@ -1691,13 +1691,49 @@ def query_instances(
     context = kubernetes_utils.get_context_from_config(provider_config)
     is_ssh = context.startswith('ssh-') if context else False
     identity = 'SSH Node Pool' if is_ssh else 'Kubernetes cluster'
+    label_selector = (f'{constants.TAG_SKYPILOT_CLUSTER_NAME}='
+                      f'{cluster_name_on_cloud}')
 
-    # Get all the pods with the label skypilot-cluster: <cluster_name>
+    # Get all the pods with the label skypilot-cluster-name: <cluster_name>
     try:
-        pods = kubernetes.core_api(context).list_namespaced_pod(
+        # log the query parameters we pass to the k8s api
+        logger.debug(f'Querying k8s api for pods:\n'
+                     f'context: {context}\n'
+                     f'namespace: {namespace}\n'
+                     f'label selector:`{label_selector}`.')
+
+        response = kubernetes.core_api(context).list_namespaced_pod(
             namespace,
-            label_selector=f'skypilot-cluster={cluster_name_on_cloud}',
-            _request_timeout=kubernetes.API_TIMEOUT).items
+            label_selector=label_selector,
+            _request_timeout=kubernetes.API_TIMEOUT)
+
+        # log PodList response info
+        if sky_logging.logging_enabled(logger, sky_logging.DEBUG):
+            logger.debug(f'k8s api response for `{label_selector}`:\n'
+                         f'apiVersion={response.api_version}, '
+                         f'kind={response.kind},\n'
+                         f'metadata={response.metadata}')
+
+        pods = response.items
+
+        # log detailed Pod info
+        if sky_logging.logging_enabled(logger, sky_logging.DEBUG):
+            logger.debug(f'k8s api response for `{label_selector}`: '
+                         f'len(pods)={len(pods)}')
+            for pod in pods:
+                logger.debug(f'k8s pod info for `{label_selector}`: '
+                             f'pod.apiVersion={pod.api_version}, '
+                             f'pod.kind={pod.kind}, \n'
+                             f'pod.name={pod.metadata.name}, '
+                             f'pod.namespace={pod.metadata.namespace}, \n'
+                             f'pod.labels={pod.metadata.labels}, \n'
+                             f'pod.annotations={pod.metadata.annotations}, \n'
+                             'pod.creationTimestamp='
+                             f'{pod.metadata.creation_timestamp}, '
+                             'pod.deletionTimestamp='
+                             f'{pod.metadata.deletion_timestamp}, \n'
+                             f'pod.status={pod.status}')
+
     except kubernetes.max_retry_error():
         with ux_utils.print_exception_no_traceback():
             if is_ssh:

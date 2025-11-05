@@ -78,20 +78,20 @@ const PROPERTY_OPTIONS = [
     value: 'name',
   },
   {
+    label: 'GPU',
+    value: 'gpu type', // Match valueList key
+  },
+  {
+    label: 'Infra',
+    value: 'infra',
+  },
+  {
     label: 'User ID',
     value: 'user id', // Match valueList key
   },
   {
     label: 'Role',
     value: 'role',
-  },
-  {
-    label: 'GPU Type',
-    value: 'gpu type', // Match valueList key
-  },
-  {
-    label: 'Infra',
-    value: 'infra',
   },
 ];
 
@@ -255,6 +255,11 @@ export function Users() {
   const [createSuccess, setCreateSuccess] = useState(null);
   const [createError, setCreateError] = useState(null);
   const [basicAuthEnabled, setBasicAuthEnabled] = useState(undefined);
+  const [serviceAccountTokenEnabled, setServiceAccountTokenEnabled] =
+    useState(undefined);
+  const [ingressBasicAuthEnabled, setIngressBasicAuthEnabled] =
+    useState(undefined);
+  const [healthCheckLoading, setHealthCheckLoading] = useState(true);
   const [activeMainTab, setActiveMainTab] = useState('users');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showRotateDialog, setShowRotateDialog] = useState(false);
@@ -334,7 +339,7 @@ export function Users() {
     ['name', 'Name'],
     ['user id', 'User ID'], // Note: lowercase with space to match URL encoding
     ['role', 'Role'],
-    ['gpu type', 'GPU Type'], // Note: lowercase with space to match URL encoding
+    ['gpu type', 'GPU'], // Note: lowercase with space to match URL encoding
     ['infra', 'Infra'],
   ]);
 
@@ -353,26 +358,35 @@ export function Users() {
   useEffect(() => {
     if (router.isReady) {
       const tab = router.query.tab;
-      if (tab === 'service-accounts') {
+      if (tab === 'service-accounts' && serviceAccountTokenEnabled) {
         setActiveMainTab('service-accounts');
       } else {
         setActiveMainTab('users');
       }
     }
-  }, [router.isReady, router.query.tab]);
+  }, [router.isReady, router.query.tab, serviceAccountTokenEnabled]);
 
   useEffect(() => {
     async function fetchHealth() {
+      setHealthCheckLoading(true);
       try {
         const resp = await apiClient.get('/api/health');
         if (resp.ok) {
           const data = await resp.json();
           setBasicAuthEnabled(!!data.basic_auth_enabled);
+          setServiceAccountTokenEnabled(!!data.service_account_token_enabled);
+          setIngressBasicAuthEnabled(!!data.ingress_basic_auth_enabled);
         } else {
           setBasicAuthEnabled(false);
+          setServiceAccountTokenEnabled(false);
+          setIngressBasicAuthEnabled(false);
         }
       } catch {
         setBasicAuthEnabled(false);
+        setServiceAccountTokenEnabled(false);
+        setIngressBasicAuthEnabled(false);
+      } finally {
+        setHealthCheckLoading(false);
       }
     }
     fetchHealth();
@@ -625,17 +639,31 @@ export function Users() {
     setResetPassword('');
   };
 
+  // Show loading while fetching health check
+  if (healthCheckLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <CircularProgress />
+        <span className="ml-2 text-gray-500">Loading...</span>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Main Tabs with Controls */}
       <div className="flex items-center justify-between mb-2">
         <div className="text-base flex items-center">
           <button
-            className={`leading-none mr-6 pb-2 px-2 border-b-2 ${
-              activeMainTab === 'users'
-                ? 'text-sky-blue border-sky-500'
-                : 'text-gray-500 hover:text-gray-700 border-transparent'
-            }`}
+            className={
+              serviceAccountTokenEnabled
+                ? `leading-none mr-6 pb-2 px-2 border-b-2 ${
+                    activeMainTab === 'users'
+                      ? 'text-sky-blue border-sky-500'
+                      : 'text-gray-500 hover:text-gray-700 border-transparent'
+                  }`
+                : 'leading-none mr-6 pb-2 px-2'
+            }
             onClick={() => {
               setActiveMainTab('users');
               router.push('/users', undefined, { shallow: true });
@@ -643,21 +671,23 @@ export function Users() {
           >
             Users
           </button>
-          <button
-            className={`leading-none pb-2 px-2 border-b-2 ${
-              activeMainTab === 'service-accounts'
-                ? 'text-sky-blue border-sky-500'
-                : 'text-gray-500 hover:text-gray-700 border-transparent'
-            }`}
-            onClick={() => {
-              setActiveMainTab('service-accounts');
-              router.push('/users?tab=service-accounts', undefined, {
-                shallow: true,
-              });
-            }}
-          >
-            Service Accounts
-          </button>
+          {serviceAccountTokenEnabled && (
+            <button
+              className={`leading-none pb-2 px-2 border-b-2 ${
+                activeMainTab === 'service-accounts'
+                  ? 'text-sky-blue border-sky-500'
+                  : 'text-gray-500 hover:text-gray-700 border-transparent'
+              }`}
+              onClick={() => {
+                setActiveMainTab('service-accounts');
+                router.push('/users?tab=service-accounts', undefined, {
+                  shallow: true,
+                });
+              }}
+            >
+              Service Accounts
+            </button>
+          )}
         </div>
 
         <div className="flex items-center">
@@ -790,7 +820,7 @@ export function Users() {
         )}
 
         {/* Create Service Account Button for Service Accounts Tab */}
-        {activeMainTab === 'service-accounts' && (
+        {activeMainTab === 'service-accounts' && serviceAccountTokenEnabled && (
           <button
             onClick={() => {
               checkPermissionAndAct(
@@ -841,6 +871,7 @@ export function Users() {
           onResetPassword={handleResetPasswordClick}
           onDeleteUser={handleDeleteUserClick}
           basicAuthEnabled={basicAuthEnabled}
+          ingressBasicAuthEnabled={ingressBasicAuthEnabled}
           currentUserRole={userRoleCache?.role}
           currentUserId={userRoleCache?.id}
           filters={filters}
@@ -848,22 +879,24 @@ export function Users() {
           deduplicateUsers={deduplicateUsers}
         />
       ) : (
-        <ServiceAccountTokensView
-          checkPermissionAndAct={checkPermissionAndAct}
-          userRoleCache={userRoleCache}
-          setCreateSuccess={setCreateSuccess}
-          setCreateError={setCreateError}
-          showCreateDialog={showCreateDialog}
-          setShowCreateDialog={setShowCreateDialog}
-          showRotateDialog={showRotateDialog}
-          setShowRotateDialog={setShowRotateDialog}
-          tokenToRotate={tokenToRotate}
-          setTokenToRotate={setTokenToRotate}
-          rotating={rotating}
-          setRotating={setRotating}
-          searchQuery={serviceAccountSearchQuery}
-          setSearchQuery={setServiceAccountSearchQuery}
-        />
+        serviceAccountTokenEnabled && (
+          <ServiceAccountTokensView
+            checkPermissionAndAct={checkPermissionAndAct}
+            userRoleCache={userRoleCache}
+            setCreateSuccess={setCreateSuccess}
+            setCreateError={setCreateError}
+            showCreateDialog={showCreateDialog}
+            setShowCreateDialog={setShowCreateDialog}
+            showRotateDialog={showRotateDialog}
+            setShowRotateDialog={setShowRotateDialog}
+            tokenToRotate={tokenToRotate}
+            setTokenToRotate={setTokenToRotate}
+            rotating={rotating}
+            setRotating={setRotating}
+            searchQuery={serviceAccountSearchQuery}
+            setSearchQuery={setServiceAccountSearchQuery}
+          />
+        )
       )}
 
       {/* Create User Dialog */}
@@ -1262,6 +1295,7 @@ function UsersTable({
   onResetPassword,
   onDeleteUser,
   basicAuthEnabled,
+  ingressBasicAuthEnabled,
   currentUserRole,
   currentUserId,
   filters,
@@ -1331,7 +1365,9 @@ function UsersTable({
         const jobsData = managedJobsResponse.jobs || [];
 
         // Build combined lookup dictionary for GPU type and infra filtering
-        // Structure: infra -> gpuType -> userId -> { clusterCount, jobCount, gpuCount }
+        // Structure: userId -> infra -> gpuType -> { clusterCount, jobCount, gpuCount }
+        //            userId -> infra -> "Total" -> { clusterCount, jobCount, gpuCount }
+        //            userId -> "Total" -> gpuType -> { clusterCount, jobCount, gpuCount }
         const newCombinedLookup = {};
 
         // Helper to extract GPU type from accelerators
@@ -1361,32 +1397,70 @@ function UsersTable({
 
         // Helper to update combined lookup
         const updateCombinedLookup = (
+          userId,
           infra,
           gpuType,
-          userId,
           clusterDelta,
           jobDelta,
           gpuDelta
         ) => {
-          if (!infra || !gpuType || !userId) return;
+          if (!userId || !infra) return;
 
-          if (!newCombinedLookup[infra]) {
-            newCombinedLookup[infra] = {};
+          // Initialize user structure
+          if (!newCombinedLookup[userId]) {
+            newCombinedLookup[userId] = {};
           }
-          if (!newCombinedLookup[infra][gpuType]) {
-            newCombinedLookup[infra][gpuType] = {};
+
+          // Initialize infra structure
+          if (!newCombinedLookup[userId][infra]) {
+            newCombinedLookup[userId][infra] = {};
           }
-          if (!newCombinedLookup[infra][gpuType][userId]) {
-            newCombinedLookup[infra][gpuType][userId] = {
+
+          // Initialize cross-infra "Total" structure
+          if (!newCombinedLookup[userId]['Total']) {
+            newCombinedLookup[userId]['Total'] = {};
+          }
+
+          // Update infra -> "Total" (all resources in this infra)
+          if (!newCombinedLookup[userId][infra]['Total']) {
+            newCombinedLookup[userId][infra]['Total'] = {
               clusterCount: 0,
               jobCount: 0,
               gpuCount: 0,
             };
           }
-          newCombinedLookup[infra][gpuType][userId].clusterCount +=
+          newCombinedLookup[userId][infra]['Total'].clusterCount +=
             clusterDelta;
-          newCombinedLookup[infra][gpuType][userId].jobCount += jobDelta;
-          newCombinedLookup[infra][gpuType][userId].gpuCount += gpuDelta;
+          newCombinedLookup[userId][infra]['Total'].jobCount += jobDelta;
+          newCombinedLookup[userId][infra]['Total'].gpuCount += gpuDelta;
+
+          // Update infra -> gpuType (specific GPU type in this infra) if gpuType exists
+          if (gpuType) {
+            if (!newCombinedLookup[userId][infra][gpuType]) {
+              newCombinedLookup[userId][infra][gpuType] = {
+                clusterCount: 0,
+                jobCount: 0,
+                gpuCount: 0,
+              };
+            }
+            newCombinedLookup[userId][infra][gpuType].clusterCount +=
+              clusterDelta;
+            newCombinedLookup[userId][infra][gpuType].jobCount += jobDelta;
+            newCombinedLookup[userId][infra][gpuType].gpuCount += gpuDelta;
+
+            // Update "Total" -> gpuType (cross-infra aggregates for this GPU type)
+            if (!newCombinedLookup[userId]['Total'][gpuType]) {
+              newCombinedLookup[userId]['Total'][gpuType] = {
+                clusterCount: 0,
+                jobCount: 0,
+                gpuCount: 0,
+              };
+            }
+            newCombinedLookup[userId]['Total'][gpuType].clusterCount +=
+              clusterDelta;
+            newCombinedLookup[userId]['Total'][gpuType].jobCount += jobDelta;
+            newCombinedLookup[userId]['Total'][gpuType].gpuCount += gpuDelta;
+          }
         };
 
         // Process clusters to build lookup
@@ -1409,7 +1483,7 @@ function UsersTable({
             gpuCount = gpuCountPerNode * numNodes;
           }
 
-          updateCombinedLookup(infra, gpuType, userId, 1, 0, gpuCount);
+          updateCombinedLookup(userId, infra, gpuType, 1, 0, gpuCount);
         }
 
         // Helper to extract num_nodes from cluster_resources_full (e.g., "3x(...)")
@@ -1442,7 +1516,7 @@ function UsersTable({
           const numNodes = extractNumNodes(job.resources_str_full);
           const gpuCount = gpuCountPerNode * numNodes;
 
-          updateCombinedLookup(infra, gpuType, userId, 0, 1, gpuCount);
+          updateCombinedLookup(userId, infra, gpuType, 0, 1, gpuCount);
         }
 
         // Store the lookup dictionary
@@ -1507,10 +1581,18 @@ function UsersTable({
         const infras = new Set();
         const gpuTypes = new Set();
 
-        for (const [infra, gpuTypeMap] of Object.entries(newCombinedLookup)) {
-          infras.add(infra);
-          for (const gpuType of Object.keys(gpuTypeMap)) {
-            gpuTypes.add(gpuType);
+        for (const userLookup of Object.values(newCombinedLookup)) {
+          // Collect infras (skip "Total" key)
+          for (const infra of Object.keys(userLookup)) {
+            if (infra !== 'Total') {
+              infras.add(infra);
+            }
+          }
+          // Collect GPU types from cross-infra "Total"
+          if (userLookup['Total']) {
+            for (const gpuType of Object.keys(userLookup['Total'])) {
+              gpuTypes.add(gpuType);
+            }
           }
         }
 
@@ -1577,11 +1659,11 @@ function UsersTable({
     let filtered = usersWithCounts;
 
     // Separate GPU type and infra filters from standard filters
-    // Note: filter.property contains the label (e.g., "GPU Type", "Infra"), not the value
+    // Note: filter.property contains the label (e.g., "GPU", "Infra"), not the value
     const standardFilters = filters.filter(
-      (f) => f.property !== 'GPU Type' && f.property !== 'Infra'
+      (f) => f.property !== 'GPU' && f.property !== 'Infra'
     );
-    const gpuTypeFilters = filters.filter((f) => f.property === 'GPU Type');
+    const gpuTypeFilters = filters.filter((f) => f.property === 'GPU');
     const infraFilters = filters.filter((f) => f.property === 'Infra');
 
     // Apply standard filters using the shared filter system
@@ -1607,6 +1689,11 @@ function UsersTable({
       let jobCount = 0;
       let gpuCount = 0;
 
+      const userLookup = combinedLookup[userId];
+      if (!userLookup) {
+        return { clusterCount: 0, jobCount: 0, gpuCount: 0 };
+      }
+
       // Normalize filter values to lowercase
       const normalizedGpuTypes = gpuTypeFilterValues.map((v) =>
         v.toLowerCase()
@@ -1616,27 +1703,52 @@ function UsersTable({
       const hasGpuTypeFilters = normalizedGpuTypes.length > 0;
       const hasInfraFilters = normalizedInfras.length > 0;
 
-      // Iterate through the combined lookup
-      for (const [infra, gpuTypeMap] of Object.entries(combinedLookup)) {
-        const infraLower = infra.toLowerCase();
+      // Case 1: Both GPU and Infra filters (AND between types, OR within types)
+      if (hasGpuTypeFilters && hasInfraFilters) {
+        for (const infraFilter of normalizedInfras) {
+          for (const [infra, gpuTypeMap] of Object.entries(userLookup)) {
+            if (infra === 'Total') continue;
+            if (infra.toLowerCase() !== infraFilter) continue;
 
-        // Check if this infra matches any of the infra filters (OR logic within infra)
-        const infraMatches =
-          !hasInfraFilters || normalizedInfras.includes(infraLower);
-
-        if (infraMatches) {
-          for (const [gpuType, userMap] of Object.entries(gpuTypeMap)) {
-            const gpuTypeLower = gpuType.toLowerCase();
-
-            // Check if this GPU type matches any of the GPU type filters (OR logic within GPU type)
-            const gpuTypeMatches =
-              !hasGpuTypeFilters || normalizedGpuTypes.includes(gpuTypeLower);
-
-            if (gpuTypeMatches && userMap[userId]) {
-              const counts = userMap[userId];
+            for (const gpuTypeFilter of normalizedGpuTypes) {
+              for (const [gpuType, counts] of Object.entries(gpuTypeMap)) {
+                if (gpuType === 'Total') continue;
+                if (gpuType.toLowerCase() === gpuTypeFilter) {
+                  clusterCount += counts.clusterCount;
+                  jobCount += counts.jobCount;
+                  gpuCount += counts.gpuCount;
+                }
+              }
+            }
+          }
+        }
+      }
+      // Case 2: Infra only
+      else if (hasInfraFilters) {
+        for (const infraFilter of normalizedInfras) {
+          for (const [infra, gpuTypeMap] of Object.entries(userLookup)) {
+            if (infra === 'Total') continue;
+            if (infra.toLowerCase() === infraFilter && gpuTypeMap['Total']) {
+              const counts = gpuTypeMap['Total'];
               clusterCount += counts.clusterCount;
               jobCount += counts.jobCount;
               gpuCount += counts.gpuCount;
+            }
+          }
+        }
+      }
+      // Case 3: GPU type only
+      else if (hasGpuTypeFilters) {
+        if (userLookup['Total']) {
+          for (const gpuTypeFilter of normalizedGpuTypes) {
+            for (const [gpuType, counts] of Object.entries(
+              userLookup['Total']
+            )) {
+              if (gpuType.toLowerCase() === gpuTypeFilter) {
+                clusterCount += counts.clusterCount;
+                jobCount += counts.jobCount;
+                gpuCount += counts.gpuCount;
+              }
             }
           }
         }
@@ -1666,25 +1778,46 @@ function UsersTable({
 
       // Filter users: check if they have ANY resources matching the filters
       filtered = filtered.filter((user) => {
-        // Iterate through lookup to see if user has any matching resources
-        for (const [infra, gpuTypeMap] of Object.entries(combinedLookup)) {
-          const infraLower = infra.toLowerCase();
+        const userLookup = combinedLookup[user.userId];
+        if (!userLookup) return false;
 
-          // Check if this infra matches any of the infra filters (OR logic)
-          const infraMatches =
-            !hasInfraFilter || normalizedInfras.includes(infraLower);
+        // Case 1: Both GPU and Infra filters
+        if (hasGpuTypeFilter && hasInfraFilter) {
+          for (const infraFilter of normalizedInfras) {
+            for (const [infra, gpuTypeMap] of Object.entries(userLookup)) {
+              if (infra === 'Total') continue;
+              if (infra.toLowerCase() !== infraFilter) continue;
 
-          if (infraMatches) {
-            for (const [gpuType, userMap] of Object.entries(gpuTypeMap)) {
-              const gpuTypeLower = gpuType.toLowerCase();
-
-              // Check if this GPU type matches any of the GPU type filters (OR logic)
-              const gpuTypeMatches =
-                !hasGpuTypeFilter || normalizedGpuTypes.includes(gpuTypeLower);
-
-              // If both match (AND between types, OR within type) and user has resources, include them
-              if (gpuTypeMatches && userMap[user.userId]) {
+              for (const gpuTypeFilter of normalizedGpuTypes) {
+                for (const gpuType of Object.keys(gpuTypeMap)) {
+                  if (gpuType === 'Total') continue;
+                  if (gpuType.toLowerCase() === gpuTypeFilter) {
+                    return true;
+                  }
+                }
+              }
+            }
+          }
+        }
+        // Case 2: Infra only
+        else if (hasInfraFilter) {
+          for (const infraFilter of normalizedInfras) {
+            for (const infra of Object.keys(userLookup)) {
+              if (infra === 'Total') continue;
+              if (infra.toLowerCase() === infraFilter) {
                 return true;
+              }
+            }
+          }
+        }
+        // Case 3: GPU type only
+        else if (hasGpuTypeFilter) {
+          if (userLookup['Total']) {
+            for (const gpuTypeFilter of normalizedGpuTypes) {
+              for (const gpuType of Object.keys(userLookup['Total'])) {
+                if (gpuType.toLowerCase() === gpuTypeFilter) {
+                  return true;
+                }
               }
             }
           }
@@ -1853,7 +1986,7 @@ function UsersTable({
 
   // Check if we're still loading lookups for GPU/Infra filters
   const hasGpuOrInfraFilters = filters.some(
-    (f) => f.property === 'GPU Type' || f.property === 'Infra'
+    (f) => f.property === 'GPU' || f.property === 'Infra'
   );
   if (hasGpuOrInfraFilters && !lookupsReady) {
     return (
@@ -1901,7 +2034,7 @@ function UsersTable({
                   User ID{getSortDirection('fullEmailID')}
                 </TableHead>
               )}
-              {!deduplicateUsers && (
+              {!deduplicateUsers && !ingressBasicAuthEnabled && (
                 <TableHead
                   onClick={() => requestSort('role')}
                   className="sortable whitespace-nowrap cursor-pointer hover:bg-gray-50 w-1/6"
@@ -1916,6 +2049,12 @@ function UsersTable({
                 Joined{getSortDirection('created_at')}
               </TableHead>
               <TableHead
+                onClick={() => requestSort('gpuCount')}
+                className="sortable whitespace-nowrap cursor-pointer hover:bg-gray-50 w-1/6"
+              >
+                GPUs{getSortDirection('gpuCount')}
+              </TableHead>
+              <TableHead
                 onClick={() => requestSort('clusterCount')}
                 className="sortable whitespace-nowrap cursor-pointer hover:bg-gray-50 w-1/6"
               >
@@ -1926,12 +2065,6 @@ function UsersTable({
                 className="sortable whitespace-nowrap cursor-pointer hover:bg-gray-50 w-1/6"
               >
                 Jobs{getSortDirection('jobCount')}
-              </TableHead>
-              <TableHead
-                onClick={() => requestSort('gpuCount')}
-                className="sortable whitespace-nowrap cursor-pointer hover:bg-gray-50 w-1/6"
-              >
-                GPUs{getSortDirection('gpuCount')}
               </TableHead>
               {/* Show Actions column if basicAuthEnabled and not deduplicating */}
               {!deduplicateUsers &&
@@ -1953,7 +2086,7 @@ function UsersTable({
                     {user.fullEmailID}
                   </TableCell>
                 )}
-                {!deduplicateUsers && (
+                {!deduplicateUsers && !ingressBasicAuthEnabled && (
                   <TableCell className="truncate" title={user.role}>
                     <div className="flex items-center gap-2">
                       {editingUserId === user.userId ? (
@@ -2013,6 +2146,25 @@ function UsersTable({
                   )}
                 </TableCell>
                 <TableCell>
+                  {user.gpuCount === -1 ? (
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded text-xs font-medium flex items-center">
+                      <CircularProgress size={10} className="mr-1" />
+                      Loading...
+                    </span>
+                  ) : (
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        user.gpuCount > 0
+                          ? 'bg-purple-100 text-purple-600'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                      title={`Total GPUs: ${user.gpuCount}`}
+                    >
+                      {user.gpuCount}
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell>
                   {user.clusterCount === -1 ? (
                     <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded text-xs font-medium flex items-center">
                       <CircularProgress size={10} className="mr-1" />
@@ -2050,25 +2202,6 @@ function UsersTable({
                     >
                       {user.jobCount}
                     </Link>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {user.gpuCount === -1 ? (
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded text-xs font-medium flex items-center">
-                      <CircularProgress size={10} className="mr-1" />
-                      Loading...
-                    </span>
-                  ) : (
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        user.gpuCount > 0
-                          ? 'bg-purple-100 text-purple-600'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                      title={`Total GPUs: ${user.gpuCount}`}
-                    >
-                      {user.gpuCount}
-                    </span>
                   )}
                 </TableCell>
                 {/* Actions cell logic - hide when deduplicating */}
@@ -2140,6 +2273,7 @@ UsersTable.propTypes = {
   onResetPassword: PropTypes.func.isRequired,
   onDeleteUser: PropTypes.func.isRequired,
   basicAuthEnabled: PropTypes.bool,
+  ingressBasicAuthEnabled: PropTypes.bool,
   currentUserRole: PropTypes.string,
   currentUserId: PropTypes.string,
 };
