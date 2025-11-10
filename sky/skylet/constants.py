@@ -255,6 +255,14 @@ SKYPILOT_WHEEL_INSTALLATION_COMMANDS = (
     # We don't want to use --prerelease=allow for all packages, because it will
     # cause uv to use pre-releases for some other packages that have sufficient
     # stable releases.
+
+    f'mkdir -p ~/.config/uv/ ; '
+    # f'echo "[[index]]\nurl = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/\ndefault = true" > ~/.config/uv/uv.toml; '
+    # f'echo "[[index]]" > ~/.config/uv/uv.toml;'
+    # f'echo "url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/"" >> ~/.config/uv/uv.toml;'
+    # f'echo "default = true" >> ~/.config/uv/uv.toml;'
+    f'wget http://10.0.42.85:8080/files/uv/uv.toml -O ~/.config/uv/uv.toml; '
+    f'{SKY_UV_PIP_CMD} config set global.index-url https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple;'
     'if [ "{cloud}" = "azure" ]; then '
     f'{SKY_UV_PIP_CMD} install --prerelease=allow "{dependencies.AZURE_CLI}";'
     'fi;'
